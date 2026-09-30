@@ -1,0 +1,1496 @@
+name: Build Bluetooth Call APK
+
+on:
+  push:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Generate Android Project
+        run: |
+          mkdir -p app/src/main/java/com/example/bluetoothcall
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+
+          # 1. settings.gradle
+          cat << 'EOF' > settings.gradle
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "BluetoothCall"
+          include ':app'
+          EOF
+
+          # 2. root build.gradle
+          cat << 'EOF' > build.gradle
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
+
+          # 3. gradle.properties
+          cat << 'EOF' > gradle.properties
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.enableJetifier=true
+          EOF
+
+          # 4. app/build.gradle
+          cat << 'EOF' > app/build.gradle
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.example.bluetoothcall'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.example.bluetoothcall"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                  }
+                  debug {
+                      debuggable true
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+              implementation 'androidx.camera:camera-core:1.3.1'
+              implementation 'androidx.camera:camera-camera2:1.3.1'
+              implementation 'androidx.camera:camera-lifecycle:1.3.1'
+              implementation 'androidx.camera:camera-view:1.3.1'
+              implementation 'com.google.guava:guava:31.1-android'
+          }
+          EOF
+
+          # 5. AndroidManifest.xml
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools"
+              package="com.example.bluetoothcall">
+
+              <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+              <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+              <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+                  android:usesPermissionFlags="neverForLocation"
+                  tools:targetApi="s" />
+              <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+              <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+              <uses-permission android:name="android.permission.CAMERA" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+              <uses-feature android:name="android.hardware.camera" android:required="false" />
+              <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+              <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_app_icon"
+                  android:label="@string/app_name"
+                  android:roundIcon="@drawable/ic_app_icon"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.BluetoothCall">
+                  
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize"
+                      android:screenOrientation="portrait">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+
+          </manifest>
+          EOF
+
+          # 6. Colors
+          cat << 'EOF' > app/src/main/res/values/colors.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="primary">#2563EB</color>
+              <color name="primary_dark">#1D4ED8</color>
+              <color name="accent">#10B981</color>
+              <color name="bg_main">#0F172A</color>
+              <color name="card_bg">#1E293B</color>
+              <color name="input_bg">#334155</color>
+              <color name="text_white">#F8FAFC</color>
+              <color name="text_gray">#94A3B8</color>
+              <color name="danger">#DC2626</color>
+          </resources>
+          EOF
+
+          # 7. Strings
+          cat << 'EOF' > app/src/main/res/values/strings.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Bluetooth Call</string>
+              <string name="app_subtitle">مكالمة صوت وصورة محلية عبر البلوتوث دون إنترنت</string>
+              <string name="device_name_label">اسم جهازك (سيظهر للطرف الآخر):</string>
+              <string name="device_name_hint">أدخل اسم جهازك هنا</string>
+              <string name="btn_create">إنشاء مكالمة (استضافة)</string>
+              <string name="btn_join">انضمام لمكالمة (بحث)</string>
+              <string name="status_ready">جاهز للبدء. اختر إنشاء أو انضمام.</string>
+              <string name="status_hosting">جاري انتظار اتصال الطرف الآخر... جهازك مرئي الآن</string>
+              <string name="status_searching">جاري البحث عن أجهزة قريبة...</string>
+              <string name="status_connecting">جاري الاتصال...</string>
+              <string name="status_connected">تم الاتصال بنجاح!</string>
+              <string name="call_in_progress">مكالمة جارية مع:</string>
+              <string name="btn_end_call">إنهاء المكالمة</string>
+              <string name="btn_switch_cam">تبديل الكاميرا</string>
+              <string name="btn_mute">كتم الصوت</string>
+              <string name="btn_unmute">تشغيل الصوت</string>
+              <string name="nearby_devices">الأجهزة المقترنة والقريبة:</string>
+              <string name="no_devices">لم يتم العثور على أجهزة بعد</string>
+              <string name="permission_required">يرجى منح أذونات الكاميرا والمايكروفون والبلوتوث لتشغيل المكالمة</string>
+          </resources>
+          EOF
+
+          # 8. Themes
+          cat << 'EOF' > app/src/main/res/values/themes.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Theme.BluetoothCall" parent="Theme.Material3.Dark.NoActionBar">
+                  <item name="colorPrimary">@color/primary</item>
+                  <item name="android:windowBackground">@color/bg_main</item>
+                  <item name="android:statusBarColor">@color/bg_main</item>
+              </style>
+          </resources>
+          EOF
+
+          # 9. Icon
+          cat << 'EOF' > app/src/main/res/drawable/ic_app_icon.xml
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:fillColor="#2563EB"
+                  android:pathData="M0,0h108v108h-108z"/>
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M65.9,54.1c-1.3,-0.3 -2.6,0.1 -3.6,1l-4.1,4.1c-6.8,-3.5 -12.4,-9.1 -15.9,-15.9l4.1,-4.1c0.9,-0.9 1.3,-2.3 1,-3.6 -0.6,-3.4 -0.6,-6.9 0,-10.3 0.4,-2.2 -1.3,-4.3 -3.5,-4.3H32.8c-2.3,0 -4.2,1.9 -4.2,4.2 0,22.1 17.9,40 40,40 2.3,0 4.2,-1.9 4.2,-4.2v-11.1c0,-2.2 -2.1,-3.9 -4.3,-3.5 -3.4,0.6 -6.9,0.6 -10.3,0z"/>
+          </vector>
+          EOF
+
+          # 10. Item Selector
+          cat << 'EOF' > app/src/main/res/drawable/item_selector.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <selector xmlns:android="http://schemas.android.com/apk/res/android">
+              <item android:state_pressed="true">
+                  <shape>
+                      <solid android:color="@color/input_bg" />
+                      <corners android:radius="8dp" />
+                  </shape>
+              </item>
+              <item>
+                  <shape>
+                      <solid android:color="@color/card_bg" />
+                      <corners android:radius="8dp" />
+                  </shape>
+              </item>
+          </selector>
+          EOF
+
+          # 11. item_device.xml
+          cat << 'EOF' > app/src/main/res/layout/item_device.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:padding="16dp"
+              android:background="@drawable/item_selector">
+
+              <TextView
+                  android:id="@+id/tvItemDeviceName"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:textColor="@color/text_white"
+                  android:textSize="16sp"
+                  android:textStyle="bold" />
+
+              <TextView
+                  android:id="@+id/tvItemDeviceAddress"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:textColor="@color/text_gray"
+                  android:textSize="12sp"
+                  android:layout_marginTop="4dp" />
+          </LinearLayout>
+          EOF
+
+          # 12. activity_main.xml
+          cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/bg_main"
+              android:layoutDirection="rtl">
+
+              <LinearLayout
+                  android:id="@+id/layoutSetup"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:orientation="vertical"
+                  android:padding="20dp"
+                  android:visibility="visible">
+
+                  <TextView
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="@string/app_name"
+                      android:textColor="@color/text_white"
+                      android:textSize="26sp"
+                      android:textStyle="bold"
+                      android:layout_gravity="center_horizontal"
+                      android:layout_marginTop="16dp" />
+
+                  <TextView
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="@string/app_subtitle"
+                      android:textColor="@color/text_gray"
+                      android:textSize="14sp"
+                      android:layout_gravity="center_horizontal"
+                      android:layout_marginBottom="24dp" />
+
+                  <com.google.android.material.card.MaterialCardView
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      app:cardCornerRadius="16dp"
+                      app:cardElevation="4dp"
+                      app:cardBackgroundColor="@color/card_bg"
+                      android:layout_marginBottom="20dp">
+
+                      <LinearLayout
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:orientation="vertical"
+                          android:padding="16dp">
+
+                          <TextView
+                              android:layout_width="wrap_content"
+                              android:layout_height="wrap_content"
+                              android:text="@string/device_name_label"
+                              android:textColor="@color/text_gray"
+                              android:textSize="14sp"
+                              android:layout_marginBottom="8dp" />
+
+                          <EditText
+                              android:id="@+id/etDeviceName"
+                              android:layout_width="match_parent"
+                              android:layout_height="48dp"
+                              android:background="@color/input_bg"
+                              android:textColor="@color/text_white"
+                              android:hint="@string/device_name_hint"
+                              android:textColorHint="@color/text_gray"
+                              android:paddingStart="12dp"
+                              android:paddingEnd="12dp"
+                              android:inputType="textPersonName"
+                              android:singleLine="true" />
+                      </LinearLayout>
+                  </com.google.android.material.card.MaterialCardView>
+
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="horizontal"
+                      android:layout_marginBottom="20dp">
+
+                      <Button
+                          android:id="@+id/btnCreate"
+                          android:layout_width="0dp"
+                          android:layout_height="56dp"
+                          android:layout_weight="1"
+                          android:layout_marginEnd="6dp"
+                          android:text="@string/btn_create"
+                          android:textStyle="bold"
+                          android:textSize="15sp"
+                          android:textColor="@color/text_white"
+                          app:cornerRadius="12dp"
+                          android:backgroundTint="@color/primary" />
+
+                      <Button
+                          android:id="@+id/btnJoin"
+                          android:layout_width="0dp"
+                          android:layout_height="56dp"
+                          android:layout_weight="1"
+                          android:layout_marginStart="6dp"
+                          android:text="@string/btn_join"
+                          android:textStyle="bold"
+                          android:textSize="15sp"
+                          android:textColor="@color/text_white"
+                          app:cornerRadius="12dp"
+                          android:backgroundTint="@color/accent" />
+                  </LinearLayout>
+
+                  <TextView
+                      android:id="@+id/tvStatus"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="@string/status_ready"
+                      android:textColor="@color/text_gray"
+                      android:textSize="14sp"
+                      android:gravity="center"
+                      android:layout_marginBottom="8dp" />
+
+                  <ProgressBar
+                      android:id="@+id/pbScanning"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="center_horizontal"
+                      android:visibility="gone"
+                      android:layout_marginBottom="12dp" />
+
+                  <TextView
+                      android:id="@+id/tvDeviceListHeader"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="@string/nearby_devices"
+                      android:textColor="@color/text_white"
+                      android:textSize="16sp"
+                      android:textStyle="bold"
+                      android:layout_marginBottom="8dp"
+                      android:visibility="gone" />
+
+                  <ListView
+                      android:id="@+id/lvDevices"
+                      android:layout_width="match_parent"
+                      android:layout_height="0dp"
+                      android:layout_weight="1"
+                      android:divider="@color/card_bg"
+                      android:dividerHeight="1dp"
+                      android:visibility="gone" />
+              </LinearLayout>
+
+              <RelativeLayout
+                  android:id="@+id/layoutCall"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:background="#000000"
+                  android:visibility="gone">
+
+                  <ImageView
+                      android:id="@+id/ivRemoteVideo"
+                      android:layout_width="match_parent"
+                      android:layout_height="match_parent"
+                      android:scaleType="centerCrop"
+                      android:contentDescription="Remote Video" />
+
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical"
+                      android:padding="20dp"
+                      android:background="#66000000"
+                      android:layout_alignParentTop="true">
+
+                      <TextView
+                          android:id="@+id/tvPartnerName"
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="متصل مع..."
+                          android:textColor="@color/text_white"
+                          android:textSize="18sp"
+                          android:textStyle="bold" />
+
+                      <TextView
+                          android:id="@+id/tvCallTimer"
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="00:00"
+                          android:textColor="@color/text_gray"
+                          android:textSize="14sp" />
+                  </LinearLayout>
+
+                  <com.google.android.material.card.MaterialCardView
+                      android:layout_width="120dp"
+                      android:layout_height="160dp"
+                      android:layout_alignParentTop="true"
+                      android:layout_alignParentEnd="true"
+                      android:layout_margin="20dp"
+                      app:cardCornerRadius="16dp"
+                      app:cardElevation="8dp"
+                      app:strokeWidth="2dp"
+                      app:strokeColor="@color/primary">
+
+                      <androidx.camera.view.PreviewView
+                          android:id="@+id/pvLocalVideo"
+                          android:layout_width="match_parent"
+                          android:layout_height="match_parent" />
+                  </com.google.android.material.card.MaterialCardView>
+
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="horizontal"
+                      android:gravity="center"
+                      android:padding="24dp"
+                      android:background="#88000000"
+                      android:layout_alignParentBottom="true">
+
+                      <Button
+                          android:id="@+id/btnMute"
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="@string/btn_mute"
+                          android:textColor="@color/text_white"
+                          android:backgroundTint="@color/card_bg"
+                          android:layout_marginEnd="12dp"
+                          app:cornerRadius="24dp" />
+
+                      <Button
+                          android:id="@+id/btnEndCall"
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="@string/btn_end_call"
+                          android:textColor="@color/text_white"
+                          android:backgroundTint="@color/danger"
+                          android:textStyle="bold"
+                          android:paddingStart="24dp"
+                          android:paddingEnd="24dp"
+                          android:layout_marginEnd="12dp"
+                          app:cornerRadius="24dp" />
+
+                      <Button
+                          android:id="@+id/btnSwitchCam"
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="@string/btn_switch_cam"
+                          android:textColor="@color/text_white"
+                          android:backgroundTint="@color/card_bg"
+                          app:cornerRadius="24dp" />
+                  </LinearLayout>
+              </RelativeLayout>
+          </FrameLayout>
+          EOF
+
+          # 13. BluetoothDeviceModel.java
+          cat << 'EOF' > app/src/main/java/com/example/bluetoothcall/BluetoothDeviceModel.java
+          package com.example.bluetoothcall;
+
+          import android.bluetooth.BluetoothDevice;
+
+          public class BluetoothDeviceModel {
+              private final String name;
+              private final String address;
+              private final BluetoothDevice device;
+
+              public BluetoothDeviceModel(String name, String address, BluetoothDevice device) {
+                  this.name = (name != null && !name.isEmpty()) ? name : ("جهاز غير معروف (" + address + ")");
+                  this.address = address;
+                  this.device = device;
+              }
+
+              public String getName() {
+                  return name;
+              }
+
+              public String getAddress() {
+                  return address;
+              }
+
+              public BluetoothDevice getDevice() {
+                  return device;
+              }
+
+              @Override
+              public boolean equals(Object o) {
+                  if (this == o) return true;
+                  if (o == null || getClass() != o.getClass()) return false;
+                  BluetoothDeviceModel that = (BluetoothDeviceModel) o;
+                  return address != null && address.equals(that.address);
+              }
+
+              @Override
+              public int hashCode() {
+                  return address != null ? address.hashCode() : 0;
+              }
+          }
+          EOF
+
+          # 14. DeviceAdapter.java
+          cat << 'EOF' > app/src/main/java/com/example/bluetoothcall/DeviceAdapter.java
+          package com.example.bluetoothcall;
+
+          import android.content.Context;
+          import android.view.LayoutInflater;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.ArrayAdapter;
+          import android.widget.TextView;
+
+          import androidx.annotation.NonNull;
+          import androidx.annotation.Nullable;
+
+          import java.util.List;
+
+          public class DeviceAdapter extends ArrayAdapter<BluetoothDeviceModel> {
+              public DeviceAdapter(Context context, List<BluetoothDeviceModel> devices) {
+                  super(context, 0, devices);
+              }
+
+              @NonNull
+              @Override
+              public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
+                  if (convertView == null) {
+                      convertView = LayoutInflater.from(getContext()).inflate(R.layout.item_device, parent, false);
+                  }
+                  BluetoothDeviceModel item = getItem(position);
+                  if (item != null) {
+                      TextView tvName = convertView.findViewById(R.id.tvItemDeviceName);
+                      TextView tvAddr = convertView.findViewById(R.id.tvItemDeviceAddress);
+                      tvName.setText(item.getName());
+                      tvAddr.setText(item.getAddress());
+                  }
+                  return convertView;
+              }
+          }
+          EOF
+
+          # 15. BluetoothCallService.java
+          cat << 'EOF' > app/src/main/java/com/example/bluetoothcall/BluetoothCallService.java
+          package com.example.bluetoothcall;
+
+          import android.annotation.SuppressLint;
+          import android.bluetooth.BluetoothAdapter;
+          import android.bluetooth.BluetoothDevice;
+          import android.bluetooth.BluetoothServerSocket;
+          import android.bluetooth.BluetoothSocket;
+          import android.os.Handler;
+          import android.os.Looper;
+
+          import java.io.BufferedInputStream;
+          import java.io.BufferedOutputStream;
+          import java.io.DataInputStream;
+          import java.io.DataOutputStream;
+          import java.io.IOException;
+          import java.lang.reflect.Method;
+          import java.nio.charset.StandardCharsets;
+          import java.util.UUID;
+
+          public class BluetoothCallService {
+              private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+              private static final String APP_NAME = "BluetoothCall";
+
+              public static final byte TYPE_HANDSHAKE = 0x01;
+              public static final byte TYPE_AUDIO = 0x02;
+              public static final byte TYPE_VIDEO = 0x03;
+              public static final byte TYPE_END_CALL = 0x04;
+
+              public interface CallListener {
+                  void onConnected(String remoteDeviceName);
+                  void onConnectionFailed();
+                  void onConnectionLost();
+                  void onVideoReceived(byte[] data);
+                  void onAudioReceived(byte[] data);
+                  void onCallEndedRemote();
+              }
+
+              private final BluetoothAdapter bluetoothAdapter;
+              private final CallListener listener;
+              private final Handler mainHandler;
+
+              private AcceptThread acceptThread;
+              private ConnectThread connectThread;
+              private ConnectedThread connectedThread;
+              private String localDeviceName = "مستخدم أندرويد";
+
+              public BluetoothCallService(CallListener listener) {
+                  this.bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                  this.listener = listener;
+                  this.mainHandler = new Handler(Looper.getMainLooper());
+              }
+
+              public synchronized void startServer(String deviceName) {
+                  this.localDeviceName = deviceName;
+                  stopAllThreads();
+                  acceptThread = new AcceptThread();
+                  acceptThread.start();
+              }
+
+              public synchronized void connect(BluetoothDevice device, String deviceName) {
+                  this.localDeviceName = deviceName;
+                  stopAllThreads();
+                  connectThread = new ConnectThread(device);
+                  connectThread.start();
+              }
+
+              public synchronized void sendVideoFrame(byte[] jpegBytes) {
+                  if (connectedThread != null) {
+                      connectedThread.write(TYPE_VIDEO, jpegBytes);
+                  }
+              }
+
+              public synchronized void sendAudioData(byte[] pcmBytes) {
+                  if (connectedThread != null) {
+                      connectedThread.write(TYPE_AUDIO, pcmBytes);
+                  }
+              }
+
+              public synchronized void endCall() {
+                  if (connectedThread != null) {
+                      connectedThread.write(TYPE_END_CALL, new byte[0]);
+                  }
+                  stopAllThreads();
+              }
+
+              public synchronized void stopAllThreads() {
+                  if (connectThread != null) {
+                      connectThread.cancel();
+                      connectThread = null;
+                  }
+                  if (connectedThread != null) {
+                      connectedThread.cancel();
+                      connectedThread = null;
+                  }
+                  if (acceptThread != null) {
+                      acceptThread.cancel();
+                      acceptThread = null;
+                  }
+              }
+
+              private synchronized void connected(BluetoothSocket socket) {
+                  if (acceptThread != null) {
+                      acceptThread.cancel();
+                      acceptThread = null;
+                  }
+                  if (connectThread != null) {
+                      connectThread.cancel();
+                      connectThread = null;
+                  }
+                  connectedThread = new ConnectedThread(socket);
+                  connectedThread.start();
+              }
+
+              @SuppressLint("MissingPermission")
+              private class AcceptThread extends Thread {
+                  private final BluetoothServerSocket serverSocket;
+                  private volatile boolean isRunning = true;
+
+                  public AcceptThread() {
+                      BluetoothServerSocket tmp = null;
+                      try {
+                          tmp = bluetoothAdapter.listenUsingRfcommWithServiceRecord(APP_NAME, MY_UUID);
+                      } catch (Exception e) {
+                          e.printStackTrace();
+                      }
+                      serverSocket = tmp;
+                  }
+
+                  public void run() {
+                      BluetoothSocket socket = null;
+                      while (isRunning) {
+                          try {
+                              if (serverSocket != null) {
+                                  socket = serverSocket.accept();
+                              }
+                          } catch (IOException e) {
+                              break;
+                          }
+                          if (socket != null) {
+                              synchronized (BluetoothCallService.this) {
+                                  connected(socket);
+                              }
+                              try {
+                                  if (serverSocket != null) serverSocket.close();
+                              } catch (IOException ignored) {}
+                              break;
+                          }
+                      }
+                  }
+
+                  public void cancel() {
+                      isRunning = false;
+                      try {
+                          if (serverSocket != null) serverSocket.close();
+                      } catch (IOException ignored) {}
+                  }
+              }
+
+              @SuppressLint("MissingPermission")
+              private class ConnectThread extends Thread {
+                  private BluetoothSocket socket;
+                  private final BluetoothDevice device;
+
+                  public ConnectThread(BluetoothDevice device) {
+                      this.device = device;
+                      BluetoothSocket tmp = null;
+                      try {
+                          tmp = device.createRfcommSocketToServiceRecord(MY_UUID);
+                      } catch (Exception e) {
+                          e.printStackTrace();
+                      }
+                      this.socket = tmp;
+                  }
+
+                  public void run() {
+                      if (bluetoothAdapter.isDiscovering()) {
+                          bluetoothAdapter.cancelDiscovery();
+                      }
+                      try {
+                          if (socket != null) {
+                              socket.connect();
+                          }
+                      } catch (Exception e) {
+                          try {
+                              Method m = device.getClass().getMethod("createRfcommSocket", new Class[]{int.class});
+                              socket = (BluetoothSocket) m.invoke(device, 1);
+                              if (socket != null) {
+                                  socket.connect();
+                              }
+                          } catch (Exception e2) {
+                              try {
+                                  if (socket != null) socket.close();
+                              } catch (IOException ignored) {}
+                              mainHandler.post(listener::onConnectionFailed);
+                              return;
+                          }
+                      }
+
+                      synchronized (BluetoothCallService.this) {
+                          connected(socket);
+                      }
+                  }
+
+                  public void cancel() {
+                      try {
+                          if (socket != null) socket.close();
+                      } catch (IOException ignored) {}
+                  }
+              }
+
+              private class ConnectedThread extends Thread {
+                  private final BluetoothSocket socket;
+                  private final DataInputStream dis;
+                  private final DataOutputStream dos;
+                  private volatile boolean isRunning = true;
+
+                  public ConnectedThread(BluetoothSocket socket) {
+                      this.socket = socket;
+                      DataInputStream tmpIn = null;
+                      DataOutputStream tmpOut = null;
+                      try {
+                          tmpIn = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
+                          tmpOut = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+                      } catch (IOException e) {
+                          e.printStackTrace();
+                      }
+                      this.dis = tmpIn;
+                      this.dos = tmpOut;
+                  }
+
+                  public void run() {
+                      byte[] nameBytes = localDeviceName.getBytes(StandardCharsets.UTF_8);
+                      write(TYPE_HANDSHAKE, nameBytes);
+
+                      while (isRunning) {
+                          try {
+                              if (dis == null) break;
+                              byte type = dis.readByte();
+                              int length = dis.readInt();
+                              if (length < 0 || length > 1000000) {
+                                  break;
+                              }
+                              byte[] data = new byte[length];
+                              dis.readFully(data);
+
+                              switch (type) {
+                                  case TYPE_HANDSHAKE:
+                                      String remoteName = new String(data, StandardCharsets.UTF_8);
+                                      mainHandler.post(() -> listener.onConnected(remoteName));
+                                      break;
+                                  case TYPE_AUDIO:
+                                      listener.onAudioReceived(data);
+                                      break;
+                                  case TYPE_VIDEO:
+                                      mainHandler.post(() -> listener.onVideoReceived(data));
+                                      break;
+                                  case TYPE_END_CALL:
+                                      mainHandler.post(listener::onCallEndedRemote);
+                                      isRunning = false;
+                                      break;
+                              }
+                          } catch (IOException e) {
+                              if (isRunning) {
+                                  mainHandler.post(listener::onConnectionLost);
+                              }
+                              break;
+                          }
+                      }
+                      cancel();
+                  }
+
+                  public synchronized void write(byte type, byte[] data) {
+                      if (!isRunning || dos == null) return;
+                      try {
+                          dos.writeByte(type);
+                          dos.writeInt(data.length);
+                          dos.write(data);
+                          dos.flush();
+                      } catch (IOException e) {
+                          isRunning = false;
+                      }
+                  }
+
+                  public void cancel() {
+                      isRunning = false;
+                      try {
+                          if (socket != null) socket.close();
+                      } catch (IOException ignored) {}
+                  }
+              }
+          }
+          EOF
+
+          # 16. MainActivity.java
+          cat << 'EOF' > app/src/main/java/com/example/bluetoothcall/MainActivity.java
+          package com.example.bluetoothcall;
+
+          import android.Manifest;
+          import android.annotation.SuppressLint;
+          import android.bluetooth.BluetoothAdapter;
+          import android.bluetooth.BluetoothDevice;
+          import android.bluetooth.BluetoothManager;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.content.pm.PackageManager;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.media.AudioFormat;
+          import android.media.AudioManager;
+          import android.media.AudioRecord;
+          import android.media.AudioTrack;
+          import android.media.MediaRecorder;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.os.SystemClock;
+          import android.util.Size;
+          import android.view.View;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.ImageView;
+          import android.widget.ListView;
+          import android.widget.ProgressBar;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import androidx.annotation.NonNull;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.camera.core.CameraSelector;
+          import androidx.camera.core.ImageAnalysis;
+          import androidx.camera.core.Preview;
+          import androidx.camera.lifecycle.ProcessCameraProvider;
+          import androidx.camera.view.PreviewView;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+
+          import com.google.common.util.concurrent.ListenableFuture;
+
+          import java.io.ByteArrayOutputStream;
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.Locale;
+          import java.util.Set;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+
+          public class MainActivity extends AppCompatActivity implements BluetoothCallService.CallListener {
+
+              private static final int PERMISSION_REQ_CODE = 101;
+
+              private View layoutSetup;
+              private EditText etDeviceName;
+              private Button btnCreate, btnJoin;
+              private TextView tvStatus, tvDeviceListHeader;
+              private ProgressBar pbScanning;
+              private ListView lvDevices;
+
+              private View layoutCall;
+              private ImageView ivRemoteVideo;
+              private PreviewView pvLocalVideo;
+              private TextView tvPartnerName, tvCallTimer;
+              private Button btnMute, btnEndCall, btnSwitchCam;
+
+              private BluetoothAdapter bluetoothAdapter;
+              private BluetoothCallService callService;
+              private final List<BluetoothDeviceModel> deviceList = new ArrayList<>();
+              private DeviceAdapter deviceAdapter;
+
+              private ProcessCameraProvider cameraProvider;
+              private int lensFacing = CameraSelector.LENS_FACING_FRONT;
+              private ExecutorService cameraExecutor;
+
+              private AudioRecord audioRecord;
+              private AudioTrack audioTrack;
+              private boolean isRecordingAudio = false;
+              private boolean isMuted = false;
+              private Thread audioThread;
+
+              private boolean isCallActive = false;
+              private long callStartTime = 0;
+              private final Handler timerHandler = new Handler(Looper.getMainLooper());
+              private final Runnable timerRunnable = new Runnable() {
+                  @Override
+                  public void run() {
+                      if (isCallActive) {
+                          long elapsed = (SystemClock.uptimeMillis() - callStartTime) / 1000;
+                          long mins = elapsed / 60;
+                          long secs = elapsed % 60;
+                          tvCallTimer.setText(String.format(Locale.US, "%02d:%02d", mins, secs));
+                          timerHandler.postDelayed(this, 1000);
+                      }
+                  }
+              };
+
+              private final BroadcastReceiver discoveryReceiver = new BroadcastReceiver() {
+                  @SuppressLint("MissingPermission")
+                  @Override
+                  public void onReceive(Context context, Intent intent) {
+                      String action = intent.getAction();
+                      if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+                          BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                          if (device != null) {
+                              String name = device.getName();
+                              String addr = device.getAddress();
+                              BluetoothDeviceModel model = new BluetoothDeviceModel(name, addr, device);
+                              if (!deviceList.contains(model)) {
+                                  deviceList.add(model);
+                                  deviceAdapter.notifyDataSetChanged();
+                              }
+                          }
+                      } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
+                          pbScanning.setVisibility(View.GONE);
+                          if (deviceList.isEmpty()) {
+                              tvStatus.setText(R.string.no_devices);
+                          }
+                      }
+                  }
+              };
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  initViews();
+                  initBluetooth();
+                  cameraExecutor = Executors.newSingleThreadExecutor();
+
+                  checkPermissions();
+              }
+
+              private void initViews() {
+                  layoutSetup = findViewById(R.id.layoutSetup);
+                  etDeviceName = findViewById(R.id.etDeviceName);
+                  btnCreate = findViewById(R.id.btnCreate);
+                  btnJoin = findViewById(R.id.btnJoin);
+                  tvStatus = findViewById(R.id.tvStatus);
+                  tvDeviceListHeader = findViewById(R.id.tvDeviceListHeader);
+                  pbScanning = findViewById(R.id.pbScanning);
+                  lvDevices = findViewById(R.id.lvDevices);
+
+                  layoutCall = findViewById(R.id.layoutCall);
+                  ivRemoteVideo = findViewById(R.id.ivRemoteVideo);
+                  pvLocalVideo = findViewById(R.id.pvLocalVideo);
+                  tvPartnerName = findViewById(R.id.tvPartnerName);
+                  tvCallTimer = findViewById(R.id.tvCallTimer);
+                  btnMute = findViewById(R.id.btnMute);
+                  btnEndCall = findViewById(R.id.btnEndCall);
+                  btnSwitchCam = findViewById(R.id.btnSwitchCam);
+
+                  deviceAdapter = new DeviceAdapter(this, deviceList);
+                  lvDevices.setAdapter(deviceAdapter);
+
+                  String defaultName = Build.MANUFACTURER + " " + Build.MODEL;
+                  etDeviceName.setText(defaultName);
+
+                  btnCreate.setOnClickListener(v -> startHosting());
+                  btnJoin.setOnClickListener(v -> startSearching());
+
+                  lvDevices.setOnItemClickListener((parent, view, position, id) -> {
+                      BluetoothDeviceModel selected = deviceList.get(position);
+                      connectToHost(selected.getDevice());
+                  });
+
+                  btnEndCall.setOnClickListener(v -> hangUpCall());
+
+                  btnMute.setOnClickListener(v -> {
+                      isMuted = !isMuted;
+                      btnMute.setText(isMuted ? R.string.btn_unmute : R.string.btn_mute);
+                      Toast.makeText(this, isMuted ? "تم كتم الميكروفون" : "تم تشغيل الميكروفون", Toast.LENGTH_SHORT).show();
+                  });
+
+                  btnSwitchCam.setOnClickListener(v -> {
+                      lensFacing = (lensFacing == CameraSelector.LENS_FACING_FRONT) 
+                          ? CameraSelector.LENS_FACING_BACK 
+                          : CameraSelector.LENS_FACING_FRONT;
+                      bindCameraUseCases();
+                  });
+              }
+
+              private void initBluetooth() {
+                  BluetoothManager bm = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+                  bluetoothAdapter = (bm != null) ? bm.getAdapter() : BluetoothAdapter.getDefaultAdapter();
+                  if (bluetoothAdapter == null) {
+                      Toast.makeText(this, "جهازك لا يدعم البلوتوث", Toast.LENGTH_LONG).show();
+                      finish();
+                      return;
+                  }
+
+                  callService = new BluetoothCallService(this);
+
+                  IntentFilter filter = new IntentFilter();
+                  filter.addAction(BluetoothDevice.ACTION_FOUND);
+                  filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+                  registerReceiver(discoveryReceiver, filter);
+              }
+
+              private String getEnteredDeviceName() {
+                  String name = etDeviceName.getText().toString().trim();
+                  return name.isEmpty() ? (Build.MANUFACTURER + " " + Build.MODEL) : name;
+              }
+
+              @SuppressLint("MissingPermission")
+              private void startHosting() {
+                  if (!hasRequiredPermissions()) {
+                      checkPermissions();
+                      return;
+                  }
+
+                  if (!bluetoothAdapter.isEnabled()) {
+                      Toast.makeText(this, "يرجى تشغيل البلوتوث أولاً", Toast.LENGTH_SHORT).show();
+                      return;
+                  }
+
+                  Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+                  discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300);
+                  startActivity(discoverableIntent);
+
+                  tvStatus.setText(R.string.status_hosting);
+                  pbScanning.setVisibility(View.GONE);
+                  tvDeviceListHeader.setVisibility(View.GONE);
+                  lvDevices.setVisibility(View.GONE);
+
+                  callService.startServer(getEnteredDeviceName());
+              }
+
+              @SuppressLint("MissingPermission")
+              private void startSearching() {
+                  if (!hasRequiredPermissions()) {
+                      checkPermissions();
+                      return;
+                  }
+
+                  if (!bluetoothAdapter.isEnabled()) {
+                      Toast.makeText(this, "يرجى تشغيل البلوتوث أولاً", Toast.LENGTH_SHORT).show();
+                      return;
+                  }
+
+                  deviceList.clear();
+                  deviceAdapter.notifyDataSetChanged();
+
+                  Set<BluetoothDevice> paired = bluetoothAdapter.getBondedDevices();
+                  if (paired != null) {
+                      for (BluetoothDevice d : paired) {
+                          deviceList.add(new BluetoothDeviceModel(d.getName(), d.getAddress(), d));
+                      }
+                  }
+                  deviceAdapter.notifyDataSetChanged();
+
+                  if (bluetoothAdapter.isDiscovering()) {
+                      bluetoothAdapter.cancelDiscovery();
+                  }
+                  bluetoothAdapter.startDiscovery();
+
+                  tvStatus.setText(R.string.status_searching);
+                  pbScanning.setVisibility(View.VISIBLE);
+                  tvDeviceListHeader.setVisibility(View.VISIBLE);
+                  lvDevices.setVisibility(View.VISIBLE);
+              }
+
+              @SuppressLint("MissingPermission")
+              private void connectToHost(BluetoothDevice device) {
+                  if (bluetoothAdapter.isDiscovering()) {
+                      bluetoothAdapter.cancelDiscovery();
+                  }
+                  tvStatus.setText(R.string.status_connecting);
+                  pbScanning.setVisibility(View.VISIBLE);
+
+                  callService.connect(device, getEnteredDeviceName());
+              }
+
+              @Override
+              public void onConnected(String remoteDeviceName) {
+                  runOnUiThread(() -> {
+                      isCallActive = true;
+                      layoutSetup.setVisibility(View.GONE);
+                      layoutCall.setVisibility(View.VISIBLE);
+
+                      tvPartnerName.setText(getString(R.string.call_in_progress) + " " + remoteDeviceName);
+                      callStartTime = SystemClock.uptimeMillis();
+                      timerHandler.post(timerRunnable);
+
+                      startCamera();
+                      startAudio();
+                  });
+              }
+
+              @Override
+              public void onConnectionFailed() {
+                  runOnUiThread(() -> {
+                      pbScanning.setVisibility(View.GONE);
+                      tvStatus.setText("فشل الاتصال! تأكد من أن الطرف الآخر قام بالإنشاء وحاول مجدداً.");
+                      Toast.makeText(this, "فشل الاتصال بالطرف الآخر", Toast.LENGTH_SHORT).show();
+                  });
+              }
+
+              @Override
+              public void onConnectionLost() {
+                  runOnUiThread(() -> {
+                      Toast.makeText(this, "انقطع الاتصال بالطرف الآخر", Toast.LENGTH_SHORT).show();
+                      hangUpCall();
+                  });
+              }
+
+              @Override
+              public void onVideoReceived(byte[] data) {
+                  try {
+                      Bitmap bmp = BitmapFactory.decodeByteArray(data, 0, data.length);
+                      if (bmp != null) {
+                          ivRemoteVideo.setImageBitmap(bmp);
+                      }
+                  } catch (Exception e) {
+                      e.printStackTrace();
+                  }
+              }
+
+              @Override
+              public void onAudioReceived(byte[] data) {
+                  if (audioTrack != null && isCallActive) {
+                      try {
+                          audioTrack.write(data, 0, data.length);
+                      } catch (Exception e) {
+                          e.printStackTrace();
+                      }
+                  }
+              }
+
+              @Override
+              public void onCallEndedRemote() {
+                  runOnUiThread(() -> {
+                      Toast.makeText(this, "أنهى الطرف الآخر المكالمة", Toast.LENGTH_SHORT).show();
+                      resetCallUI();
+                  });
+              }
+
+              private void hangUpCall() {
+                  if (callService != null) {
+                      callService.endCall();
+                  }
+                  resetCallUI();
+              }
+
+              private void resetCallUI() {
+                  isCallActive = false;
+                  timerHandler.removeCallbacks(timerRunnable);
+
+                  stopCamera();
+                  stopAudio();
+
+                  layoutCall.setVisibility(View.GONE);
+                  layoutSetup.setVisibility(View.VISIBLE);
+                  tvStatus.setText(R.string.status_ready);
+                  pbScanning.setVisibility(View.GONE);
+              }
+
+              private void startCamera() {
+                  ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(this);
+                  future.addListener(() -> {
+                      try {
+                          cameraProvider = future.get();
+                          bindCameraUseCases();
+                      } catch (Exception e) {
+                          e.printStackTrace();
+                      }
+                  }, ContextCompat.getMainExecutor(this));
+              }
+
+              private void bindCameraUseCases() {
+                  if (cameraProvider == null) return;
+
+                  Preview preview = new Preview.Builder().build();
+                  preview.setSurfaceProvider(pvLocalVideo.getSurfaceProvider());
+
+                  ImageAnalysis analysis = new ImageAnalysis.Builder()
+                      .setTargetResolution(new Size(320, 240))
+                      .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                      .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                      .build();
+
+                  long[] lastTime = new long[]{0};
+                  analysis.setAnalyzer(cameraExecutor, image -> {
+                      long now = System.currentTimeMillis();
+                      if (isCallActive && now - lastTime[0] >= 120) {
+                          lastTime[0] = now;
+                          try {
+                              Bitmap bmp = image.toBitmap();
+                              if (bmp != null) {
+                                  Bitmap scaled = Bitmap.createScaledBitmap(bmp, 240, 180, true);
+                                  ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                  scaled.compress(Bitmap.CompressFormat.JPEG, 40, baos);
+                                  byte[] jpeg = baos.toByteArray();
+                                  if (callService != null && isCallActive) {
+                                      callService.sendVideoFrame(jpeg);
+                                  }
+                              }
+                          } catch (Exception e) {
+                              e.printStackTrace();
+                          }
+                      }
+                      image.close();
+                  });
+
+                  CameraSelector selector = (lensFacing == CameraSelector.LENS_FACING_FRONT)
+                      ? CameraSelector.DEFAULT_FRONT_CAMERA
+                      : CameraSelector.DEFAULT_BACK_CAMERA;
+
+                  try {
+                      cameraProvider.unbindAll();
+                      cameraProvider.bindToLifecycle(this, selector, preview, analysis);
+                  } catch (Exception e) {
+                      e.printStackTrace();
+                  }
+              }
+
+              private void stopCamera() {
+                  if (cameraProvider != null) {
+                      cameraProvider.unbindAll();
+                  }
+              }
+
+              private void startAudio() {
+                  int sampleRate = 8000;
+                  int channelIn = AudioFormat.CHANNEL_IN_MONO;
+                  int channelOut = AudioFormat.CHANNEL_OUT_MONO;
+                  int format = AudioFormat.ENCODING_PCM_16BIT;
+
+                  int minRec = AudioRecord.getMinBufferSize(sampleRate, channelIn, format);
+                  int recBuf = Math.max(minRec, 640);
+
+                  int minPlay = AudioTrack.getMinBufferSize(sampleRate, channelOut, format);
+                  int playBuf = Math.max(minPlay, 1280);
+
+                  try {
+                      if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                          audioRecord = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, sampleRate, channelIn, format, recBuf);
+                          audioRecord.startRecording();
+                          isRecordingAudio = true;
+
+                          audioThread = new Thread(() -> {
+                              byte[] buffer = new byte[640];
+                              while (isRecordingAudio && isCallActive) {
+                                  int read = audioRecord.read(buffer, 0, buffer.length);
+                                  if (read > 0 && !isMuted && callService != null) {
+                                      byte[] chunk = new byte[read];
+                                      System.arraycopy(buffer, 0, chunk, 0, read);
+                                      callService.sendAudioData(chunk);
+                                  }
+                              }
+                          });
+                          audioThread.start();
+                      }
+
+                      audioTrack = new AudioTrack(AudioManager.STREAM_VOICE_CALL, sampleRate, channelOut, format, playBuf, AudioTrack.MODE_STREAM);
+                      audioTrack.play();
+
+                      AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                      if (am != null) {
+                          am.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                          am.setSpeakerphoneOn(true);
+                      }
+                  } catch (Exception e) {
+                      e.printStackTrace();
+                  }
+              }
+
+              private void stopAudio() {
+                  isRecordingAudio = false;
+                  if (audioThread != null) {
+                      try {
+                          audioThread.join(400);
+                      } catch (InterruptedException ignored) {}
+                      audioThread = null;
+                  }
+                  if (audioRecord != null) {
+                      try {
+                          audioRecord.stop();
+                          audioRecord.release();
+                      } catch (Exception ignored) {}
+                      audioRecord = null;
+                  }
+                  if (audioTrack != null) {
+                      try {
+                          audioTrack.stop();
+                          audioTrack.release();
+                      } catch (Exception ignored) {}
+                      audioTrack = null;
+                  }
+                  AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                  if (am != null) {
+                      am.setMode(AudioManager.MODE_NORMAL);
+                  }
+              }
+
+              private boolean hasRequiredPermissions() {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                      return ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
+                             ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
+                             ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+                             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+                  } else {
+                      return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
+                             ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+                             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+                  }
+              }
+
+              private void checkPermissions() {
+                  List<String> needed = new ArrayList<>();
+                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                      needed.add(Manifest.permission.CAMERA);
+                  }
+                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                      needed.add(Manifest.permission.RECORD_AUDIO);
+                  }
+
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                      if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                          needed.add(Manifest.permission.BLUETOOTH_SCAN);
+                      }
+                      if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                          needed.add(Manifest.permission.BLUETOOTH_CONNECT);
+                      }
+                      if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+                          needed.add(Manifest.permission.BLUETOOTH_ADVERTISE);
+                      }
+                  } else {
+                      if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                          needed.add(Manifest.permission.ACCESS_FINE_LOCATION);
+                      }
+                  }
+
+                  if (!needed.isEmpty()) {
+                      ActivityCompat.requestPermissions(this, needed.toArray(new String[0]), PERMISSION_REQ_CODE);
+                  }
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == PERMISSION_REQ_CODE) {
+                      boolean allGranted = true;
+                      for (int res : grantResults) {
+                          if (res != PackageManager.PERMISSION_GRANTED) {
+                              allGranted = false;
+                              break;
+                          }
+                      }
+                      if (!allGranted) {
+                          Toast.makeText(this, R.string.permission_required, Toast.LENGTH_LONG).show();
+                      }
+                  }
+              }
+
+              @Override
+              protected void onDestroy() {
+                  super.onDestroy();
+                  try {
+                      unregisterReceiver(discoveryReceiver);
+                  } catch (Exception ignored) {}
+                  hangUpCall();
+                  if (cameraExecutor != null) {
+                      cameraExecutor.shutdown();
+                  }
+              }
+          }
+          EOF
+
+      - name: Setup Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
+          unzip -q gradle-8.4-bin.zip
+          ./gradle-8.4/bin/gradle wrapper --gradle-version 8.4
+          chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Prepare APK for Artifact
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk BluetoothCall-v1.0.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BluetoothCall-App
+          path: BluetoothCall-v1.0.apk
